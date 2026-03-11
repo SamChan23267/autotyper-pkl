@@ -7,17 +7,20 @@ CLI is installed) and falls back to sensible built-in defaults otherwise.
 
 Usage
 -----
-1. Edit ``autotyper.pkl`` to set your preferred parameters.
-2. Run::
+    python autotyper.py            # launches the GUI (default)
+    python autotyper.py --no-gui   # terminal / headless CLI mode
 
-       python autotyper.py
+GUI mode
+--------
+A settings window opens where you can configure speed, accuracy and
+pausing time, enter your text, then click **Start Typing**.  The app
+counts down so you can switch to the target window first.
 
-3. When prompted, paste / type the text you want to auto-type and finish
-   with a blank line followed by ``done`` (or just two consecutive blank
-   lines).
-4. Click into the target window.
-5. Press the configured hotkey (default: **Ctrl + `**) to start typing.
-6. Press the hotkey again (or Ctrl+C in the terminal) to stop.
+CLI mode
+--------
+1. Edit ``autotyper.pkl`` to pre-set your preferred parameters.
+2. Run with ``--no-gui``; you will be prompted for the text to type.
+3. Press the configured hotkey (default: **Ctrl + `**) to start/stop.
 """
 
 import os
@@ -324,6 +327,22 @@ class HumanTyper:
         self._thread = threading.Thread(target=self._run, args=(content,), daemon=True)
         self._thread.start()
 
+    def start_immediate(self, text: str | None = None) -> None:
+        """Start typing immediately without any countdown delay.
+
+        Intended for callers (e.g. the GUI) that manage their own countdown
+        before invoking this method.
+        """
+        if self.running:
+            return
+        content = text or self.cfg.text
+        if not content.strip():
+            return
+        self.running = True
+        self._stop.clear()
+        self._thread = threading.Thread(target=self._run, args=(content,), daemon=True)
+        self._thread.start()
+
     def stop(self) -> None:
         if self.running:
             self._stop.set()
@@ -429,6 +448,26 @@ def run(cfg: AutoTyperConfig) -> None:
 
 def main() -> None:
     cfg = load_config()
+
+    # --no-gui flag (or no display available) → fall back to terminal CLI
+    force_cli = "--no-gui" in sys.argv
+
+    if not force_cli:
+        try:
+            import tkinter as _tk
+            # Probe for a real display before importing the full UI module
+            _probe = _tk.Tk()
+            _probe.withdraw()
+            _probe.destroy()
+            del _tk, _probe
+
+            from autotyper_ui import AutoTyperUI
+            AutoTyperUI(cfg).run()
+            return
+        except Exception:
+            # No display / tkinter unavailable – silently fall back to CLI
+            pass
+
     run(cfg)
 
 
