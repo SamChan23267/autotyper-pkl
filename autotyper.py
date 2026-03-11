@@ -312,6 +312,34 @@ class HumanTyper:
     # Public control
     # ------------------------------------------------------------------
 
+    @property
+    def stopped(self) -> bool:
+        """True if a stop has been *requested* via stop() (whether or not typing
+        had already started).  False while typing is running normally or before
+        any stop request has been made."""
+        return self._stop.is_set()
+
+    def wait_for_completion(self) -> None:
+        """Block until the typing thread finishes (naturally or after stop())."""
+        if self._thread is not None:
+            self._thread.join()
+
+    def _countdown_and_run(self, content: str, countdown: int) -> None:
+        """Wait *countdown* seconds (honouring stop requests), then type *content*.
+
+        Runs in a background thread so the hotkey callback returns immediately
+        and further hotkey presses are not blocked during the countdown.
+        """
+        for _ in range(countdown):
+            if self._stop.is_set():
+                self.running = False
+                return
+            time.sleep(1)
+        if not self._stop.is_set():
+            self._run(content)
+        else:
+            self.running = False
+
     def start(self, text: str | None = None) -> None:
         if self.running:
             print("[AutoTyper] Already typing – press the hotkey again to stop.")
@@ -323,8 +351,11 @@ class HumanTyper:
         self.running = True
         self._stop.clear()
         print("[AutoTyper] Starting in 3 seconds – switch to target window…")
-        time.sleep(3)
-        self._thread = threading.Thread(target=self._run, args=(content,), daemon=True)
+        # Run the countdown in a background thread so the hotkey callback returns
+        # immediately and the listener remains responsive during the countdown.
+        self._thread = threading.Thread(
+            target=self._countdown_and_run, args=(content, 3), daemon=True
+        )
         self._thread.start()
 
     def start_immediate(self, text: str | None = None) -> None:

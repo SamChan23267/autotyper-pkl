@@ -43,10 +43,12 @@ class AutoTyperUI:
     """
 
     def __init__(self, cfg) -> None:
-        from autotyper import HumanTyper   # imported lazily to avoid circular
+        from autotyper import HumanTyper   # deferred import keeps startup fast and avoids loading the full module at import time
         self._HumanTyper = HumanTyper
         self.cfg = cfg
         self.typer = None
+        self._hotkey_listener = None   # pynput GlobalHotKeys instance, active during typing
+        self._manual_stop = False      # set to True when the user explicitly stops
 
         self.root = tk.Tk()
         self.root.title("AutoTyper – Human-like Typing Simulator")
@@ -314,6 +316,7 @@ class AutoTyperUI:
             messagebox.showwarning("No Text", "Please enter the text you want to type.")
             return
 
+        self._manual_stop = False
         self.start_btn.config(state=tk.DISABLED)
         self.stop_btn.config(state=tk.NORMAL)
         self._set_status("Starting…")
@@ -326,8 +329,12 @@ class AutoTyperUI:
         ).start()
 
     def _on_stop(self) -> None:
+        self._manual_stop = True
         if self.typer:
             self.typer.stop()
+        if self._hotkey_listener is not None:
+            self._hotkey_listener.stop()
+            self._hotkey_listener = None
         self._reset_buttons()
         self._set_status("Stopped — click Start to type again.")
 
@@ -338,18 +345,47 @@ class AutoTyperUI:
     def _countdown_then_type(self, secs: int) -> None:
         """Runs in a background thread: countdown, then start typing."""
         for i in range(secs, 0, -1):
+            if self._manual_stop:
+                return  # User clicked Stop during countdown
             self._set_status(f"Starting in {i}s – switch to your target window…")
             time.sleep(1)
 
+        if self._manual_stop:
+            return
+
         self._set_status("Typing…")
         self.typer = self._HumanTyper(self.cfg)
-        self.typer.start_immediate(self.cfg.text)
-        # Wait for typing to finish
-        if self.typer._thread is not None:
-            self.typer._thread.join()
 
-        # Callback on completion
-        self.root.after(0, self._on_typing_done)
+        # Register the global hotkey so the user can stop typing from any window
+        # (the GUI window no longer has focus once the user switches away).
+        from pynput import keyboard as _kb
+        from autotyper import _hotkey_string
+        combo = _hotkey_string(self.cfg)
+
+        def _hotkey_stop() -> None:
+            self.root.after(0, self._on_stop)
+
+        try:
+            listener = _kb.GlobalHotKeys({combo: _hotkey_stop})
+            listener.start()
+            self._hotkey_listener = listener
+        except Exception:
+            # Hotkey registration failed (e.g. unsupported key on this platform).
+            # Typing still works; the user must use the Stop button instead.
+            self._hotkey_listener = None
+
+        self.typer.start_immediate(self.cfg.text)
+        # Wait for typing to finish (naturally or via stop)
+        self.typer.wait_for_completion()
+
+        # Stop the hotkey listener now that typing is done
+        if self._hotkey_listener is not None:
+            self._hotkey_listener.stop()
+            self._hotkey_listener = None
+
+        # Only update UI if typing finished naturally (not via Stop button/hotkey)
+        if not self._manual_stop:
+            self.root.after(0, self._on_typing_done)
 
     def _on_typing_done(self) -> None:
         self._reset_buttons()
