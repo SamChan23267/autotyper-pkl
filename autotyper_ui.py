@@ -43,11 +43,12 @@ class AutoTyperUI:
     """
 
     def __init__(self, cfg) -> None:
-        from autotyper import HumanTyper   # deferred import keeps startup fast and avoids loading the full module at import time
+        from autotyper import HumanTyper   # local import avoids a circular dependency with autotyper.main()
         self._HumanTyper = HumanTyper
         self.cfg = cfg
         self.typer = None
-        self._hotkey_listener = None   # pynput GlobalHotKeys instance, active during typing
+        self._hotkey_listener = None   # permanent pynput GlobalHotKeys instance
+        self._registered_combo = None  # the combo string currently registered
         self._manual_stop = False      # set to True when the user explicitly stops
 
         self.root = tk.Tk()
@@ -58,6 +59,11 @@ class AutoTyperUI:
 
         self._build_ui()
         self._populate_from_config()
+
+        # Register the permanent global hotkey listener now that cfg is ready.
+        self._start_hotkey_listener()
+        # Clean up the listener when the window is closed.
+        self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
     # ──────────────────────────────────────────────────────────────────────
     # UI construction
@@ -279,6 +285,64 @@ class AutoTyperUI:
         self.modifier_var.set(self.cfg.hotkey_modifier)
         self.hotkey_key_var.set(self.cfg.hotkey_key)
 
+    # ──────────────────────────────────────────────────────────────────────
+    # Permanent global hotkey listener
+    # ──────────────────────────────────────────────────────────────────────
+
+    def _start_hotkey_listener(self) -> None:
+        """(Re-)register the permanent global hotkey listener.
+
+        The listener acts as a start/stop toggle no matter which window has
+        focus, matching the CLI behaviour and the "Start / Stop Hotkey" label.
+        It is registered once at startup and restarted only when the user
+        changes the hotkey combination and clicks Start.
+        """
+        from pynput import keyboard as _kb
+        from autotyper import _hotkey_string
+        combo = _hotkey_string(self.cfg)
+
+        # No need to restart if the same combo is already registered.
+        if combo == self._registered_combo and self._hotkey_listener is not None:
+            return
+
+        # Stop any existing listener before creating a new one.
+        if self._hotkey_listener is not None:
+            self._hotkey_listener.stop()
+            self._hotkey_listener = None
+            self._registered_combo = None
+
+        def _toggle() -> None:
+            # Schedule the toggle on the Tk main thread (pynput fires on its own thread).
+            def _do_toggle() -> None:
+                # Use start-button state as the canonical "session active?" check:
+                # DISABLED = counting down or typing; NORMAL = idle.
+                if self.start_btn["state"] == tk.DISABLED:
+                    self._on_stop()
+                else:
+                    self._on_start()
+            self.root.after(0, _do_toggle)
+
+        try:
+            listener = _kb.GlobalHotKeys({combo: _toggle})
+            listener.start()
+            self._hotkey_listener = listener
+            self._registered_combo = combo
+        except Exception as e:
+            # Hotkey registration failed (bad key name, missing permissions, etc.).
+            # Print a warning; typing still works via the Start/Stop buttons.
+            print(f"[AutoTyper] Warning: could not register hotkey '{combo}': {e}")
+            self._hotkey_listener = None
+            self._registered_combo = None
+
+    def _on_close(self) -> None:
+        """Clean up when the window is closed."""
+        if self.typer is not None:
+            self.typer.stop()
+        if self._hotkey_listener is not None:
+            self._hotkey_listener.stop()
+            self._hotkey_listener = None
+        self.root.destroy()
+
     def _read_settings(self) -> bool:
         """
         Copy UI values into self.cfg.
@@ -316,6 +380,9 @@ class AutoTyperUI:
             messagebox.showwarning("No Text", "Please enter the text you want to type.")
             return
 
+        # Restart the hotkey listener if the combo was changed in the UI.
+        self._start_hotkey_listener()
+
         self._manual_stop = False
         self.start_btn.config(state=tk.DISABLED)
         self.stop_btn.config(state=tk.NORMAL)
@@ -332,9 +399,7 @@ class AutoTyperUI:
         self._manual_stop = True
         if self.typer:
             self.typer.stop()
-        if self._hotkey_listener is not None:
-            self._hotkey_listener.stop()
-            self._hotkey_listener = None
+        # The hotkey listener stays active so it can trigger the next session.
         self._reset_buttons()
         self._set_status("Stopped — click Start to type again.")
 
@@ -356,32 +421,9 @@ class AutoTyperUI:
         self._set_status("Typing…")
         self.typer = self._HumanTyper(self.cfg)
 
-        # Register the global hotkey so the user can stop typing from any window
-        # (the GUI window no longer has focus once the user switches away).
-        from pynput import keyboard as _kb
-        from autotyper import _hotkey_string
-        combo = _hotkey_string(self.cfg)
-
-        def _hotkey_stop() -> None:
-            self.root.after(0, self._on_stop)
-
-        try:
-            listener = _kb.GlobalHotKeys({combo: _hotkey_stop})
-            listener.start()
-            self._hotkey_listener = listener
-        except Exception:
-            # Hotkey registration failed (e.g. unsupported key on this platform).
-            # Typing still works; the user must use the Stop button instead.
-            self._hotkey_listener = None
-
         self.typer.start_immediate(self.cfg.text)
         # Wait for typing to finish (naturally or via stop)
         self.typer.wait_for_completion()
-
-        # Stop the hotkey listener now that typing is done
-        if self._hotkey_listener is not None:
-            self._hotkey_listener.stop()
-            self._hotkey_listener = None
 
         # Only update UI if typing finished naturally (not via Stop button/hotkey)
         if not self._manual_stop:
