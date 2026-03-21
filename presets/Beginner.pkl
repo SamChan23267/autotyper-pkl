@@ -1,0 +1,30 @@
+/// Beginner typist preset.
+///
+/// Models someone who is still learning to type: slow keystroke speed, many
+/// transposition errors, frequent long pauses while searching for keys, and
+/// pronounced hesitation before capital letters.
+amends "../AutoTyper.pkl"
+
+// Long gap between words — still locating the next key
+wordPause = 300
+wordPauseStdDev = 100
+
+// Very noticeable pause after punctuation
+punctuationPause = 600
+punctuationPauseStdDev = 150
+
+// High transposition rate (~15 % of words) — hunt-and-peck errors
+transpositionProbability = 0.15
+
+// Frequent long pauses — finding keys on the keyboard
+longerPauseProbability = 0.08
+longerPauseDuration = 3000
+longerPauseDurationStdDev = 1000
+
+// Significant hesitation before Shift
+capitalizationDelay = 100
+capitalizationDelayStdDev = 30
+
+// ~10–15 WPM equivalent average keystroke delay
+keystrokeDelay = 250
+keystrokeDelayStdDev = 70
