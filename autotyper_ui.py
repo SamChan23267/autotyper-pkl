@@ -7,8 +7,11 @@ Provides a settings panel where users can interactively configure:
   • Accuracy      – error rate % (slider + spinbox)
   • Paragraph pause – seconds between paragraphs (slider + spinbox)
   • Immediate-correction ratio (slider + spinbox)
+  • Human factors – word pause, punctuation pause, transposition probability,
+                    longer pause probability / duration, capitalization delay
   • Start/stop hotkey modifier and key
   • Countdown seconds before typing begins
+  • Presets – one-click configurations for common typing profiles
 
 Start the application with:
     python autotyper.py          # launches this GUI by default
@@ -24,10 +27,64 @@ from tkinter import messagebox, scrolledtext, ttk
 # ─────────────────────────────────────────────────────────────────────────────
 # Colour palette (light theme – looks good on all platforms without extra libs)
 # ─────────────────────────────────────────────────────────────────────────────
-_BG       = "#f5f5f5"
-_ACCENT   = "#3a7ebf"
-_BTN_FG   = "white"
-_STATUS_BG= "#e8e8e8"
+_BG        = "#f5f5f5"
+_ACCENT    = "#3a7ebf"
+_BTN_FG    = "white"
+_STATUS_BG = "#e8e8e8"
+_MIN_WIDTH  = 560
+_MIN_HEIGHT = 700
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Premade typing-profile presets
+# ─────────────────────────────────────────────────────────────────────────────
+_PRESETS: dict[str, dict | None] = {
+    "Custom": None,  # no override – keep whatever the user has set
+    "Fast Typist": {
+        "min_wpm": 110, "max_wpm": 150,
+        "error_rate": 0.02, "immediate_correct_rate": 0.90,
+        "paragraph_pause": 0.8,
+        "word_pause": 40, "word_pause_std_dev": 10,
+        "punctuation_pause": 100, "punctuation_pause_std_dev": 25,
+        "transposition_probability": 0.03,
+        "longer_pause_probability": 0.01,
+        "longer_pause_duration": 800, "longer_pause_duration_std_dev": 200,
+        "capitalization_delay": 15, "capitalization_delay_std_dev": 5,
+    },
+    "Realistic": {
+        "min_wpm": 60, "max_wpm": 90,
+        "error_rate": 0.05, "immediate_correct_rate": 0.70,
+        "paragraph_pause": 1.5,
+        "word_pause": 100, "word_pause_std_dev": 30,
+        "punctuation_pause": 250, "punctuation_pause_std_dev": 60,
+        "transposition_probability": 0.04,
+        "longer_pause_probability": 0.03,
+        "longer_pause_duration": 1800, "longer_pause_duration_std_dev": 600,
+        "capitalization_delay": 40, "capitalization_delay_std_dev": 12,
+    },
+    "Careful Typist": {
+        "min_wpm": 30, "max_wpm": 50,
+        "error_rate": 0.01, "immediate_correct_rate": 0.95,
+        "paragraph_pause": 2.0,
+        "word_pause": 200, "word_pause_std_dev": 50,
+        "punctuation_pause": 400, "punctuation_pause_std_dev": 100,
+        "transposition_probability": 0.01,
+        "longer_pause_probability": 0.05,
+        "longer_pause_duration": 2000, "longer_pause_duration_std_dev": 800,
+        "capitalization_delay": 60, "capitalization_delay_std_dev": 15,
+    },
+    "Beginner": {
+        "min_wpm": 15, "max_wpm": 25,
+        "error_rate": 0.08, "immediate_correct_rate": 0.60,
+        "paragraph_pause": 3.0,
+        "word_pause": 300, "word_pause_std_dev": 100,
+        "punctuation_pause": 600, "punctuation_pause_std_dev": 150,
+        "transposition_probability": 0.15,
+        "longer_pause_probability": 0.08,
+        "longer_pause_duration": 3000, "longer_pause_duration_std_dev": 1000,
+        "capitalization_delay": 100, "capitalization_delay_std_dev": 30,
+    },
+}
 
 
 class AutoTyperUI:
@@ -54,7 +111,7 @@ class AutoTyperUI:
         self.root = tk.Tk()
         self.root.title("AutoTyper – Human-like Typing Simulator")
         self.root.configure(bg=_BG)
-        self.root.minsize(520, 600)
+        self.root.minsize(_MIN_WIDTH, _MIN_HEIGHT)
         self.root.resizable(True, True)
 
         self._build_ui()
@@ -102,10 +159,34 @@ class AutoTyperUI:
         self.text_area.pack(fill=tk.BOTH, expand=True)
         ttk.Label(
             txt_frame,
-            text='Finish input, then press Start. Use blank lines to separate paragraphs.',
+            text='Finish input, then press Start. Newlines are typed as-is (Enter once per line break).',
             foreground="gray",
             font=("Helvetica", 8),
         ).pack(anchor="w", pady=(4, 0))
+
+        # ── Preset selector ──────────────────────────────────────────────
+        preset_frame = ttk.LabelFrame(outer, text=" Preset ", padding=8)
+        preset_frame.pack(fill=tk.X, pady=(0, 8))
+
+        preset_inner = ttk.Frame(preset_frame)
+        preset_inner.pack(fill=tk.X)
+        ttk.Label(preset_inner, text="Load preset:").pack(side=tk.LEFT)
+        self.preset_var = tk.StringVar(value="Custom")
+        preset_combo = ttk.Combobox(
+            preset_inner,
+            textvariable=self.preset_var,
+            values=list(_PRESETS.keys()),
+            width=14,
+            state="readonly",
+        )
+        preset_combo.pack(side=tk.LEFT, padx=(8, 0))
+        preset_combo.bind("<<ComboboxSelected>>", self._on_preset_selected)
+        ttk.Label(
+            preset_inner,
+            text="  ← selecting a preset fills all settings below",
+            foreground="gray",
+            font=("Helvetica", 8),
+        ).pack(side=tk.LEFT, padx=(8, 0))
 
         # ── Settings panel ───────────────────────────────────────────────
         settings = ttk.LabelFrame(outer, text=" Settings ", padding=8)
@@ -123,6 +204,25 @@ class AutoTyperUI:
         self._add_float_row(settings, 2, "Error rate (%):",  self.error_var,    0.0, 50.0, 0.5)
         self._add_float_row(settings, 3, "Immediate fix (%):", self.imm_corr_var, 0.0, 100.0, 5.0)
         self._add_float_row(settings, 4, "Para pause (s):",  self.pause_var,    0.0, 30.0, 0.5)
+
+        # ── Human Factors panel ──────────────────────────────────────────
+        hf = ttk.LabelFrame(outer, text=" Human Factors ", padding=8)
+        hf.pack(fill=tk.X, pady=(0, 8))
+        hf.columnconfigure(1, weight=1)
+
+        self.word_pause_var             = tk.IntVar(value=80)
+        self.punct_pause_var            = tk.IntVar(value=200)
+        self.transposition_var          = tk.DoubleVar(value=5.0)
+        self.longer_pause_prob_var      = tk.DoubleVar(value=2.0)
+        self.longer_pause_duration_var  = tk.IntVar(value=1500)
+        self.cap_delay_var              = tk.IntVar(value=30)
+
+        self._add_int_row(hf, 0, "Word pause (ms):",        self.word_pause_var,            0, 500)
+        self._add_int_row(hf, 1, "Punct pause (ms):",       self.punct_pause_var,            0, 1000)
+        self._add_float_row(hf, 2, "Transposition (%):",    self.transposition_var,          0.0, 50.0, 0.5)
+        self._add_float_row(hf, 3, "Longer pause (%):",     self.longer_pause_prob_var,      0.0, 20.0, 0.5)
+        self._add_int_row(hf, 4, "Longer pause dur (ms):",  self.longer_pause_duration_var,  100, 10000)
+        self._add_int_row(hf, 5, "Capital delay (ms):",     self.cap_delay_var,              0, 200)
 
         # ── Hotkey ───────────────────────────────────────────────────────
         hotkey_frame = ttk.LabelFrame(outer, text=" Start / Stop Hotkey ", padding=8)
@@ -284,6 +384,33 @@ class AutoTyperUI:
         self.pause_var.set(self.cfg.paragraph_pause)
         self.modifier_var.set(self.cfg.hotkey_modifier)
         self.hotkey_key_var.set(self.cfg.hotkey_key)
+        self.word_pause_var.set(self.cfg.word_pause)
+        self.punct_pause_var.set(self.cfg.punctuation_pause)
+        self.transposition_var.set(round(self.cfg.transposition_probability * 100, 1))
+        self.longer_pause_prob_var.set(round(self.cfg.longer_pause_probability * 100, 1))
+        self.longer_pause_duration_var.set(self.cfg.longer_pause_duration)
+        self.cap_delay_var.set(self.cfg.capitalization_delay)
+
+    # ──────────────────────────────────────────────────────────────────────
+    # Preset helper
+    # ──────────────────────────────────────────────────────────────────────
+
+    def _on_preset_selected(self, _event=None) -> None:
+        """Apply the chosen preset to all setting widgets."""
+        preset = _PRESETS.get(self.preset_var.get())
+        if preset is None:
+            return  # "Custom" – leave everything as-is
+        self.min_wpm_var.set(preset["min_wpm"])
+        self.max_wpm_var.set(preset["max_wpm"])
+        self.error_var.set(round(preset["error_rate"] * 100, 1))
+        self.imm_corr_var.set(round(preset["immediate_correct_rate"] * 100, 1))
+        self.pause_var.set(preset["paragraph_pause"])
+        self.word_pause_var.set(preset["word_pause"])
+        self.punct_pause_var.set(preset["punctuation_pause"])
+        self.transposition_var.set(round(preset["transposition_probability"] * 100, 1))
+        self.longer_pause_prob_var.set(round(preset["longer_pause_probability"] * 100, 1))
+        self.longer_pause_duration_var.set(preset["longer_pause_duration"])
+        self.cap_delay_var.set(preset["capitalization_delay"])
 
     # ──────────────────────────────────────────────────────────────────────
     # Permanent global hotkey listener
@@ -367,6 +494,12 @@ class AutoTyperUI:
         self.cfg.paragraph_pause = self.pause_var.get()
         self.cfg.hotkey_modifier = self.modifier_var.get()
         self.cfg.hotkey_key = self.hotkey_key_var.get().strip() or "`"
+        self.cfg.word_pause = self.word_pause_var.get()
+        self.cfg.punctuation_pause = self.punct_pause_var.get()
+        self.cfg.transposition_probability = round(self.transposition_var.get() / 100.0, 4)
+        self.cfg.longer_pause_probability = round(self.longer_pause_prob_var.get() / 100.0, 4)
+        self.cfg.longer_pause_duration = self.longer_pause_duration_var.get()
+        self.cfg.capitalization_delay = self.cap_delay_var.get()
         return True
 
     # ──────────────────────────────────────────────────────────────────────
