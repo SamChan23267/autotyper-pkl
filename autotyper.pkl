@@ -1,0 +1,36 @@
+/// AutoTyper – Human-like typing simulator configuration
+///
+/// Edit this file to configure the autotyper's behaviour.
+/// Run `python autotyper.py` to launch the interactive CLI.
+
+module AutoTyper
+
+/// Text to be automatically typed.
+/// Leave empty ("") to be prompted at runtime.
+text: String = ""
+
+/// Minimum typing speed in words per minute.
+minWpm: Int(this >= 10 && this <= 300) = 40
+
+/// Maximum typing speed in words per minute.
+/// Must be greater than or equal to minWpm.
+maxWpm: Int(this >= 10 && this <= 300 && this >= minWpm) = 80
+
+/// Probability (0.0–1.0) that any given keystroke produces a typo.
+errorRate: Float(this >= 0.0 && this <= 1.0) = 0.05
+
+/// Probability (0.0–1.0) that a typo is corrected immediately.
+/// The remaining fraction causes the typer to notice only after
+/// typing a few more characters.
+immediateCorrectRate: Float(this >= 0.0 && this <= 1.0) = 0.70
+
+/// Seconds to pause between paragraphs (separated by blank lines).
+paragraphPause: Float(this >= 0.0 && this <= 60.0) = 1.5
+
+/// Modifier key for the start/stop hotkey.
+/// Accepted values: "ctrl", "alt", "shift", "cmd"
+hotkeyModifier: String = "ctrl"
+
+/// Key for the start/stop hotkey.
+/// Default is the backtick (`), giving ctrl+`.
+hotkeyKey: String = "`"
