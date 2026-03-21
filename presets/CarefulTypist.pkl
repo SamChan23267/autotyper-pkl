@@ -1,0 +1,30 @@
+/// Careful typist preset.
+///
+/// Models a deliberate, accuracy-focused typist who types slowly to avoid
+/// mistakes.  Suitable for simulating someone composing a formal e-mail,
+/// filling in a form, or learning to touch-type.
+amends "../AutoTyper.pkl"
+
+// Long, deliberate word-boundary pause
+wordPause = 200
+wordPauseStdDev = 50
+
+// Extended pause after punctuation — reader-like rhythm
+punctuationPause = 400
+punctuationPauseStdDev = 100
+
+// Virtually no transposition errors (only ~1 % of words)
+transpositionProbability = 0.01
+
+// More frequent, longer thinking pauses
+longerPauseProbability = 0.05
+longerPauseDuration = 2000
+longerPauseDurationStdDev = 800
+
+// Deliberate Shift-key handling
+capitalizationDelay = 60
+capitalizationDelayStdDev = 15
+
+// ~25–30 WPM equivalent average keystroke delay
+keystrokeDelay = 150
+keystrokeDelayStdDev = 40

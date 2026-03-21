@@ -1,0 +1,30 @@
+/// Fast typist preset.
+///
+/// Models a proficient touch-typist who rarely makes errors and seldom pauses
+/// between words.  Suitable for simulating a skilled programmer or data-entry
+/// professional typing at around 120–140 WPM.
+amends "../AutoTyper.pkl"
+
+// Barely-perceptible word-boundary pause
+wordPause = 40
+wordPauseStdDev = 10
+
+// Brief punctuation pause — fast typist doesn't dwell
+punctuationPause = 100
+punctuationPauseStdDev = 25
+
+// Very few transposition errors (~3 % of words)
+transpositionProbability = 0.03
+
+// Longer pauses are rare and short (~ once every 100 words)
+longerPauseProbability = 0.01
+longerPauseDuration = 800
+longerPauseDurationStdDev = 200
+
+// Minimal Shift-key overhead
+capitalizationDelay = 15
+capitalizationDelayStdDev = 5
+
+// ~120 WPM equivalent average keystroke delay
+keystrokeDelay = 30
+keystrokeDelayStdDev = 8

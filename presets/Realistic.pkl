@@ -1,0 +1,30 @@
+/// Realistic everyday-typist preset.
+///
+/// Models a typical office worker typing at a comfortable, natural pace with
+/// occasional small errors and momentary distractions.  All six human-factor
+/// variables are tuned to reflect observed averages for proficient typists.
+amends "../AutoTyper.pkl"
+
+// Comfortable word-boundary hesitation
+wordPause = 100
+wordPauseStdDev = 30
+
+// Noticeable pause to "read" punctuation
+punctuationPause = 250
+punctuationPauseStdDev = 60
+
+// ~4 % of words contain a transposition that is caught and corrected
+transpositionProbability = 0.04
+
+// Occasional glance-away or thought pause (~ once every 33 words)
+longerPauseProbability = 0.03
+longerPauseDuration = 1800
+longerPauseDurationStdDev = 600
+
+// Slight Shift-key hesitation
+capitalizationDelay = 40
+capitalizationDelayStdDev = 12
+
+// ~75 WPM equivalent average keystroke delay
+keystrokeDelay = 80
+keystrokeDelayStdDev = 20

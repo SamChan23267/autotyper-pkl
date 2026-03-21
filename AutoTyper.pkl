@@ -1,0 +1,71 @@
+/// Configuration for a human-like autotyper.
+///
+/// Each parameter controls one aspect of the simulated typing behaviour.
+/// Timing values are in **milliseconds**.  Probability values are in the
+/// range `0.0` (never) to `1.0` (always).
+///
+/// Normal-distribution variance is expressed as a standard-deviation (StdDev)
+/// companion property for every mean timing value, allowing consumers to
+/// sample `Normal(mean, stdDev)` and clamp to zero when drawing a delay.
+module AutoTyper
+
+// ── Word pause ──────────────────────────────────────────────────────────────
+
+/// Mean pause inserted between words (ms).
+/// Simulates the tiny hesitation a human makes at word boundaries.
+wordPause: Int(this >= 0) = 80
+
+/// Standard deviation for [wordPause].
+/// Set to `0` to disable variance and use the mean exactly.
+wordPauseStdDev: Int(this >= 0) = 20
+
+// ── Punctuation pause ───────────────────────────────────────────────────────
+
+/// Mean pause inserted after a punctuation character (ms).
+/// Punctuation characters: `.` `,` `!` `?` `;` `:` `—`
+/// This pause is applied **in addition to** [wordPause].
+punctuationPause: Int(this >= 0) = 200
+
+/// Standard deviation for [punctuationPause].
+punctuationPauseStdDev: Int(this >= 0) = 50
+
+// ── Character transposition ─────────────────────────────────────────────────
+
+/// Probability (0–1) that a transposition error occurs on any given word.
+/// When triggered, two adjacent characters in the word are swapped and the
+/// autotyper then deletes and re-types the correct characters, simulating a
+/// human catching and correcting a typo (e.g. "the" → "teh" → "the").
+transpositionProbability: Float(isBetween(0.0, 1.0)) = 0.05
+
+// ── Occasional longer pause ─────────────────────────────────────────────────
+
+/// Probability (0–1) that a longer distraction pause occurs after any word.
+/// Models moments when a human glances away, thinks, or is interrupted.
+longerPauseProbability: Float(isBetween(0.0, 1.0)) = 0.02
+
+/// Mean duration of an occasional longer pause (ms).
+longerPauseDuration: Int(this >= 0) = 1500
+
+/// Standard deviation for [longerPauseDuration].
+longerPauseDurationStdDev: Int(this >= 0) = 500
+
+// ── Capitalization delay ─────────────────────────────────────────────────────
+
+/// Mean extra delay inserted before typing a capital letter (ms).
+/// Reflects the slight hesitation a human has when reaching for Shift.
+capitalizationDelay: Int(this >= 0) = 30
+
+/// Standard deviation for [capitalizationDelay].
+capitalizationDelayStdDev: Int(this >= 0) = 10
+
+// ── Per-keystroke delay (typing speed) ──────────────────────────────────────
+
+/// Mean delay between consecutive keystrokes (ms).
+/// Lower values produce faster typing; higher values produce slower typing.
+/// Sampling `Normal(keystrokeDelay, keystrokeDelayStdDev)` and clamping to
+/// zero gives a realistic per-key delay that follows a normal distribution.
+keystrokeDelay: Int(this >= 0) = 60
+
+/// Standard deviation for [keystrokeDelay].
+/// Controls how much the per-keystroke timing varies around the mean.
+keystrokeDelayStdDev: Int(this >= 0) = 15
