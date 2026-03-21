@@ -425,18 +425,7 @@ class HumanTyper:
 
     def _run(self, text: str) -> None:
         """Main typing loop – runs in a background thread."""
-        paragraphs = text.split("\n\n")
-        for idx, para in enumerate(paragraphs):
-            if self._stop.is_set():
-                break
-            self._type_paragraph(para)
-            if idx < len(paragraphs) - 1 and not self._stop.is_set():
-                # End of paragraph: type the blank line separator
-                self._press("\n")
-                self._press("\n")
-                # Human pause before starting the next paragraph
-                pause = self.cfg.paragraph_pause + random.uniform(-0.3, 0.6)
-                time.sleep(max(0.3, pause))
+        self._type_paragraph(text)
         self.running = False
         print("\n[AutoTyper] Finished typing.")
 

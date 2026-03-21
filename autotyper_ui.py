@@ -159,7 +159,7 @@ class AutoTyperUI:
         self.text_area.pack(fill=tk.BOTH, expand=True)
         ttk.Label(
             txt_frame,
-            text='Finish input, then press Start. Use blank lines to separate paragraphs.',
+            text='Finish input, then press Start. Newlines are typed as-is (Enter once per line break).',
             foreground="gray",
             font=("Helvetica", 8),
         ).pack(anchor="w", pady=(4, 0))
