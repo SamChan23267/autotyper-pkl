@@ -279,10 +279,14 @@ class HumanTyper:
 
     def _press(self, ch: str) -> None:
         """Press and release a single character key."""
-        if ch.isupper():
-            self._capitalization_delay()
-        self._kb.press(ch)
-        self._kb.release(ch)
+        if ch == "\n":
+            self._kb.press(Key.enter)
+            self._kb.release(Key.enter)
+        else:
+            if ch.isupper():
+                self._capitalization_delay()
+            self._kb.press(ch)
+            self._kb.release(ch)
         time.sleep(self._char_delay(ch))
 
     def _backspace(self, count: int = 1) -> None:
