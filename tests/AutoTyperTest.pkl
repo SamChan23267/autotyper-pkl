@@ -1,0 +1,147 @@
+/// Unit tests for AutoTyper.pkl and its presets.
+amends "pkl:test"
+
+import "../AutoTyper.pkl"
+import "../presets/Realistic.pkl"
+import "../presets/FastTypist.pkl"
+import "../presets/CarefulTypist.pkl"
+import "../presets/Beginner.pkl"
+
+facts {
+
+  // ── AutoTyper defaults ──────────────────────────────────────────────────
+
+  ["default wordPause is non-negative"] {
+    AutoTyper.wordPause >= 0
+  }
+
+  ["default wordPauseStdDev is non-negative"] {
+    AutoTyper.wordPauseStdDev >= 0
+  }
+
+  ["default punctuationPause is non-negative"] {
+    AutoTyper.punctuationPause >= 0
+  }
+
+  ["default punctuationPauseStdDev is non-negative"] {
+    AutoTyper.punctuationPauseStdDev >= 0
+  }
+
+  ["default transpositionProbability is between 0 and 1"] {
+    AutoTyper.transpositionProbability >= 0.0
+    AutoTyper.transpositionProbability <= 1.0
+  }
+
+  ["default longerPauseProbability is between 0 and 1"] {
+    AutoTyper.longerPauseProbability >= 0.0
+    AutoTyper.longerPauseProbability <= 1.0
+  }
+
+  ["default longerPauseDuration is non-negative"] {
+    AutoTyper.longerPauseDuration >= 0
+  }
+
+  ["default longerPauseDurationStdDev is non-negative"] {
+    AutoTyper.longerPauseDurationStdDev >= 0
+  }
+
+  ["default capitalizationDelay is non-negative"] {
+    AutoTyper.capitalizationDelay >= 0
+  }
+
+  ["default capitalizationDelayStdDev is non-negative"] {
+    AutoTyper.capitalizationDelayStdDev >= 0
+  }
+
+  ["default keystrokeDelay is non-negative"] {
+    AutoTyper.keystrokeDelay >= 0
+  }
+
+  ["default keystrokeDelayStdDev is non-negative"] {
+    AutoTyper.keystrokeDelayStdDev >= 0
+  }
+
+  // ── Preset: Realistic ───────────────────────────────────────────────────
+
+  ["Realistic inherits all AutoTyper fields"] {
+    Realistic.wordPause != null
+    Realistic.punctuationPause != null
+    Realistic.transpositionProbability != null
+    Realistic.longerPauseProbability != null
+    Realistic.capitalizationDelay != null
+    Realistic.keystrokeDelay != null
+  }
+
+  ["Realistic transpositionProbability is valid"] {
+    Realistic.transpositionProbability >= 0.0
+    Realistic.transpositionProbability <= 1.0
+  }
+
+  ["Realistic longerPauseProbability is valid"] {
+    Realistic.longerPauseProbability >= 0.0
+    Realistic.longerPauseProbability <= 1.0
+  }
+
+  // ── Preset: FastTypist ──────────────────────────────────────────────────
+
+  ["FastTypist is faster than Realistic (lower keystrokeDelay)"] {
+    FastTypist.keystrokeDelay < Realistic.keystrokeDelay
+  }
+
+  ["FastTypist has fewer transposition errors than Realistic"] {
+    FastTypist.transpositionProbability <= Realistic.transpositionProbability
+  }
+
+  ["FastTypist transpositionProbability is valid"] {
+    FastTypist.transpositionProbability >= 0.0
+    FastTypist.transpositionProbability <= 1.0
+  }
+
+  // ── Preset: CarefulTypist ───────────────────────────────────────────────
+
+  ["CarefulTypist is slower than Realistic (higher keystrokeDelay)"] {
+    CarefulTypist.keystrokeDelay > Realistic.keystrokeDelay
+  }
+
+  ["CarefulTypist has fewer transposition errors than Realistic"] {
+    CarefulTypist.transpositionProbability <= Realistic.transpositionProbability
+  }
+
+  ["CarefulTypist transpositionProbability is valid"] {
+    CarefulTypist.transpositionProbability >= 0.0
+    CarefulTypist.transpositionProbability <= 1.0
+  }
+
+  // ── Preset: Beginner ────────────────────────────────────────────────────
+
+  ["Beginner is slower than CarefulTypist (higher keystrokeDelay)"] {
+    Beginner.keystrokeDelay > CarefulTypist.keystrokeDelay
+  }
+
+  ["Beginner has more transposition errors than Realistic"] {
+    Beginner.transpositionProbability > Realistic.transpositionProbability
+  }
+
+  ["Beginner transpositionProbability is valid"] {
+    Beginner.transpositionProbability >= 0.0
+    Beginner.transpositionProbability <= 1.0
+  }
+
+  ["Beginner longerPauseProbability is higher than FastTypist"] {
+    Beginner.longerPauseProbability > FastTypist.longerPauseProbability
+  }
+
+  // ── Ordering across presets ─────────────────────────────────────────────
+
+  ["keystrokeDelay increases: Fast < Realistic < Careful < Beginner"] {
+    FastTypist.keystrokeDelay < Realistic.keystrokeDelay
+    Realistic.keystrokeDelay < CarefulTypist.keystrokeDelay
+    CarefulTypist.keystrokeDelay < Beginner.keystrokeDelay
+  }
+
+  ["wordPause increases: Fast < Realistic < Careful < Beginner"] {
+    FastTypist.wordPause < Realistic.wordPause
+    Realistic.wordPause < CarefulTypist.wordPause
+    CarefulTypist.wordPause < Beginner.wordPause
+  }
+}
