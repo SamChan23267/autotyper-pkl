@@ -91,6 +91,17 @@ class AutoTyperConfig:
         self.paragraph_pause: float = 1.5
         self.hotkey_modifier: str = "ctrl"
         self.hotkey_key: str = "`"
+        # Human-factor parameters (timing values in milliseconds)
+        self.word_pause: int = 80
+        self.word_pause_std_dev: int = 20
+        self.punctuation_pause: int = 200
+        self.punctuation_pause_std_dev: int = 50
+        self.transposition_probability: float = 0.05
+        self.longer_pause_probability: float = 0.02
+        self.longer_pause_duration: int = 1500
+        self.longer_pause_duration_std_dev: int = 500
+        self.capitalization_delay: int = 30
+        self.capitalization_delay_std_dev: int = 10
 
     def update(self, data: dict) -> None:
         """Overlay *data* dict (e.g. parsed from PKL output) onto defaults."""
@@ -110,6 +121,26 @@ class AutoTyperConfig:
             self.hotkey_modifier = data["hotkeyModifier"]
         if "hotkeyKey" in data:
             self.hotkey_key = data["hotkeyKey"]
+        if "wordPause" in data:
+            self.word_pause = int(data["wordPause"])
+        if "wordPauseStdDev" in data:
+            self.word_pause_std_dev = int(data["wordPauseStdDev"])
+        if "punctuationPause" in data:
+            self.punctuation_pause = int(data["punctuationPause"])
+        if "punctuationPauseStdDev" in data:
+            self.punctuation_pause_std_dev = int(data["punctuationPauseStdDev"])
+        if "transpositionProbability" in data:
+            self.transposition_probability = float(data["transpositionProbability"])
+        if "longerPauseProbability" in data:
+            self.longer_pause_probability = float(data["longerPauseProbability"])
+        if "longerPauseDuration" in data:
+            self.longer_pause_duration = int(data["longerPauseDuration"])
+        if "longerPauseDurationStdDev" in data:
+            self.longer_pause_duration_std_dev = int(data["longerPauseDurationStdDev"])
+        if "capitalizationDelay" in data:
+            self.capitalization_delay = int(data["capitalizationDelay"])
+        if "capitalizationDelayStdDev" in data:
+            self.capitalization_delay_std_dev = int(data["capitalizationDelayStdDev"])
 
 
 # ---------------------------------------------------------------------------
@@ -117,14 +148,24 @@ class AutoTyperConfig:
 # ---------------------------------------------------------------------------
 
 _PKL_PATTERNS: dict[str, str] = {
-    "text":                 r'text\s*=\s*"((?:[^"\\]|\\.)*)"',
-    "minWpm":               r"minWpm\s*=\s*(\d+)",
-    "maxWpm":               r"maxWpm\s*=\s*(\d+)",
-    "errorRate":            r"errorRate\s*=\s*([\d.]+)",
-    "immediateCorrectRate": r"immediateCorrectRate\s*=\s*([\d.]+)",
-    "paragraphPause":       r"paragraphPause\s*=\s*([\d.]+)",
-    "hotkeyModifier":       r'hotkeyModifier\s*=\s*"([^"]*)"',
-    "hotkeyKey":            r'hotkeyKey\s*=\s*"([^"]*)"',
+    "text":                       r'text\s*=\s*"((?:[^"\\]|\\.)*)"',
+    "minWpm":                     r"minWpm\s*=\s*(\d+)",
+    "maxWpm":                     r"maxWpm\s*=\s*(\d+)",
+    "errorRate":                  r"errorRate\s*=\s*([\d.]+)",
+    "immediateCorrectRate":       r"immediateCorrectRate\s*=\s*([\d.]+)",
+    "paragraphPause":             r"paragraphPause\s*=\s*([\d.]+)",
+    "hotkeyModifier":             r'hotkeyModifier\s*=\s*"([^"]*)"',
+    "hotkeyKey":                  r'hotkeyKey\s*=\s*"([^"]*)"',
+    "wordPause":                  r"wordPause\s*=\s*(\d+)",
+    "wordPauseStdDev":            r"wordPauseStdDev\s*=\s*(\d+)",
+    "punctuationPause":           r"punctuationPause\s*=\s*(\d+)",
+    "punctuationPauseStdDev":     r"punctuationPauseStdDev\s*=\s*(\d+)",
+    "transpositionProbability":   r"transpositionProbability\s*=\s*([\d.]+)",
+    "longerPauseProbability":     r"longerPauseProbability\s*=\s*([\d.]+)",
+    "longerPauseDuration":        r"longerPauseDuration\s*=\s*(\d+)",
+    "longerPauseDurationStdDev":  r"longerPauseDurationStdDev\s*=\s*(\d+)",
+    "capitalizationDelay":        r"capitalizationDelay\s*=\s*(\d+)",
+    "capitalizationDelayStdDev":  r"capitalizationDelayStdDev\s*=\s*(\d+)",
 }
 
 
@@ -192,15 +233,45 @@ class HumanTyper:
     # ------------------------------------------------------------------
 
     def _char_delay(self, ch: str = "") -> float:
-        """Random per-keystroke delay derived from the configured WPM range."""
-        wpm = random.uniform(self.cfg.min_wpm, self.cfg.max_wpm)
+        """Normal-distribution per-keystroke delay derived from the configured WPM range."""
+        mean_wpm = (self.cfg.min_wpm + self.cfg.max_wpm) / 2.0
+        std_wpm = max((self.cfg.max_wpm - self.cfg.min_wpm) / 4.0, mean_wpm * 0.05)
+        wpm = max(self.cfg.min_wpm, min(self.cfg.max_wpm, random.gauss(mean_wpm, std_wpm)))
         # Average English word ≈ 5 chars; convert WPM → seconds-per-char
-        base = 60.0 / (wpm * 5.0)
-        jitter = base * random.uniform(-0.30, 0.30)
-        delay = max(0.02, base + jitter)
-        if ch in _SLOW_CHARS:
-            delay += random.uniform(0.05, 0.20)
-        return delay
+        return max(0.01, 60.0 / (wpm * 5.0))
+
+    def _normal_delay_s(self, mean_ms: int, std_ms: int, min_s: float = 0.0) -> float:
+        """Sample a delay (seconds) from Normal(mean_ms, std_ms), clamped to *min_s*."""
+        s = random.gauss(mean_ms / 1000.0, std_ms / 1000.0)
+        return max(min_s, s)
+
+    def _word_pause(self) -> None:
+        """Tiny pause at word boundaries to simulate inter-word hesitation."""
+        if self.cfg.word_pause > 0:
+            time.sleep(self._normal_delay_s(self.cfg.word_pause, self.cfg.word_pause_std_dev))
+
+    def _punctuation_pause(self) -> None:
+        """Extra pause after punctuation characters."""
+        if self.cfg.punctuation_pause > 0:
+            time.sleep(self._normal_delay_s(
+                self.cfg.punctuation_pause, self.cfg.punctuation_pause_std_dev
+            ))
+
+    def _capitalization_delay(self) -> None:
+        """Tiny delay before pressing Shift for a capital letter."""
+        if self.cfg.capitalization_delay > 0:
+            time.sleep(self._normal_delay_s(
+                self.cfg.capitalization_delay, self.cfg.capitalization_delay_std_dev
+            ))
+
+    def _maybe_longer_pause(self) -> None:
+        """Occasionally insert a longer distraction pause after a word."""
+        if self.cfg.longer_pause_probability > 0 and random.random() < self.cfg.longer_pause_probability:
+            time.sleep(self._normal_delay_s(
+                self.cfg.longer_pause_duration,
+                self.cfg.longer_pause_duration_std_dev,
+                min_s=0.1,
+            ))
 
     # ------------------------------------------------------------------
     # Low-level key helpers
@@ -208,6 +279,8 @@ class HumanTyper:
 
     def _press(self, ch: str) -> None:
         """Press and release a single character key."""
+        if ch.isupper():
+            self._capitalization_delay()
         self._kb.press(ch)
         self._kb.release(ch)
         time.sleep(self._char_delay(ch))
@@ -276,6 +349,35 @@ class HumanTyper:
 
         return len(extra_typed)
 
+    def _type_word_transposition(self, word: str) -> None:
+        """Type *word* with a random character-transposition error, then correct it.
+
+        Simulates a human swapping two adjacent characters (e.g. "the" → "teh"),
+        typing a few more characters before noticing, then backspacing and
+        retyping from the transposition point onward.
+        """
+        swap_pos = random.randint(0, len(word) - 2)
+        chars = list(word)
+        chars[swap_pos], chars[swap_pos + 1] = chars[swap_pos + 1], chars[swap_pos]
+        wrong_word = "".join(chars)
+
+        # Type the incorrectly-ordered chars up to some point past the swap
+        notice_after = random.randint(swap_pos + 2, len(wrong_word))
+        for c in wrong_word[:notice_after]:
+            if self._stop.is_set():
+                return
+            self._press(c)
+
+        # Pause – noticing the mistake
+        time.sleep(random.uniform(0.15, 0.45))
+
+        # Backspace back to the transposition point and retype correctly
+        self._backspace(notice_after - swap_pos)
+        for c in word[swap_pos:]:
+            if self._stop.is_set():
+                return
+            self._press(c)
+
     def _type_paragraph(self, para: str) -> None:
         """Type a single paragraph's text."""
         i = 0
@@ -283,13 +385,39 @@ class HumanTyper:
             if self._stop.is_set():
                 return
             ch = para[i]
+
             if ch == "\n":
                 self._press("\n")
                 time.sleep(random.uniform(0.08, 0.25))
                 i += 1
                 continue
+
+            if ch == " ":
+                # Type the space then add a word-boundary pause
+                self._press(" ")
+                self._word_pause()
+                # Occasionally insert a longer distraction pause after a word
+                self._maybe_longer_pause()
+                i += 1
+                continue
+
+            # Start of an alphabetic word – check for transposition error
+            if ch.isalpha():
+                j = i + 1
+                while j < len(para) and para[j].isalpha():
+                    j += 1
+                word = para[i:j]
+                if len(word) >= 2 and random.random() < self.cfg.transposition_probability:
+                    self._type_word_transposition(word)
+                    i = j
+                    continue
+                # No transposition – fall through to char-by-char typing below
+
             consumed = self._type_char_with_possible_error(ch, para[i + 1:])
             i += 1 + consumed
+            # Extra pause after punctuation characters
+            if ch in _SLOW_CHARS:
+                self._punctuation_pause()
 
     def _run(self, text: str) -> None:
         """Main typing loop – runs in a background thread."""
@@ -450,6 +578,11 @@ def run(cfg: AutoTyperConfig) -> None:
     print(f"  Speed range  : {cfg.min_wpm}–{cfg.max_wpm} WPM")
     print(f"  Error rate   : {cfg.error_rate * 100:.1f}%")
     print(f"  Para pause   : {cfg.paragraph_pause}s")
+    print(f"  Word pause   : {cfg.word_pause}ms (±{cfg.word_pause_std_dev}ms)")
+    print(f"  Punct pause  : {cfg.punctuation_pause}ms (±{cfg.punctuation_pause_std_dev}ms)")
+    print(f"  Transposition: {cfg.transposition_probability * 100:.1f}% of words")
+    print(f"  Longer pause : {cfg.longer_pause_probability * 100:.1f}% chance, {cfg.longer_pause_duration}ms")
+    print(f"  Cap delay    : {cfg.capitalization_delay}ms (±{cfg.capitalization_delay_std_dev}ms)")
     hotkey = f"{cfg.hotkey_modifier}+{cfg.hotkey_key}"
     print(f"  Hotkey       : {hotkey}  (start / stop)")
     print()

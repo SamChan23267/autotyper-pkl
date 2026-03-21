@@ -34,3 +34,40 @@ hotkeyModifier: String = "ctrl"
 /// Key for the start/stop hotkey.
 /// Default is the backtick (`), giving ctrl+`.
 hotkeyKey: String = "`"
+
+// ── Human-factor parameters ──────────────────────────────────────────────────
+
+/// Mean pause inserted between words (milliseconds).
+/// Simulates the tiny hesitation a human makes at word boundaries.
+wordPause: Int(this >= 0) = 80
+
+/// Standard deviation for wordPause (milliseconds).
+wordPauseStdDev: Int(this >= 0) = 20
+
+/// Mean pause inserted after a punctuation character (milliseconds).
+/// Applied in addition to the normal keystroke delay.
+punctuationPause: Int(this >= 0) = 200
+
+/// Standard deviation for punctuationPause (milliseconds).
+punctuationPauseStdDev: Int(this >= 0) = 50
+
+/// Probability (0.0–1.0) that a transposition error occurs on any given word.
+/// When triggered, two adjacent characters are swapped and then corrected,
+/// simulating a human catching a typo (e.g. "the" → "teh" → "the").
+transpositionProbability: Float(isBetween(0.0, 1.0)) = 0.05
+
+/// Probability (0.0–1.0) that a longer distraction pause occurs after a word.
+longerPauseProbability: Float(isBetween(0.0, 1.0)) = 0.02
+
+/// Mean duration of an occasional longer pause (milliseconds).
+longerPauseDuration: Int(this >= 0) = 1500
+
+/// Standard deviation for longerPauseDuration (milliseconds).
+longerPauseDurationStdDev: Int(this >= 0) = 500
+
+/// Mean extra delay inserted before typing a capital letter (milliseconds).
+/// Reflects the slight hesitation when reaching for the Shift key.
+capitalizationDelay: Int(this >= 0) = 30
+
+/// Standard deviation for capitalizationDelay (milliseconds).
+capitalizationDelayStdDev: Int(this >= 0) = 10
